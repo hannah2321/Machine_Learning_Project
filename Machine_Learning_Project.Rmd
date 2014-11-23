@@ -1,0 +1,133 @@
+Practical Machine Learning Course Project
+========================================================
+Set global options
+
+```{r set-options, cache=TRUE}
+options(width = 250)
+setwd("H:/My Documents/Coursera/Machine Learning/Week 3")
+```
+
+Background
+--------------------------------------------------------
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Data
+--------------------------------------------------------
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+Submission Prompt
+--------------------------------------------------------
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+Project Execution
+--------------------------------------------------------
+# Data Load
+Load training and testing datasets. Remove columns with errors in testing dataset. View dimensions of datasets. View columns of datasets. Remove columns that are not needed.
+
+```{r Data Load}
+pml_training <- read.csv("data/pml-training.csv", 
+                         na.strings=c("NA","#DIV/0!",""))
+pml_testing <- read.csv("data/pml-testing.csv", 
+                        na.strings=c("NA","#DIV/0!",""))
+                    
+training <- pml_training[,colSums(is.na(pml_testing))==0]
+testing <- pml_testing[,colSums(is.na(pml_testing))==0]
+
+dim(training)
+dim(testing)
+
+colnames(training)
+colnames(testing)
+
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+testing <- testing[,-53]
+```
+
+# Data Partition
+Partition training data to training (70%) and testing (30%) subsets.
+
+```{r Data Partition}
+set.seed(2321)
+library(caret)
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+trainSubset <- training[inTrain,]
+testSubset <- training[-inTrain,]
+```
+
+# Model Tuning
+Set up a 3-fold cross-validation and enable multiple cores for model tuning.
+
+```{r Model Tuning}
+control3 <- trainControl(method = "cv", number=3, verboseIter=F)
+
+library(doParallel)
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+```
+
+# Random Forest Model Build & Evaluation
+Use random forest method to build model.
+```{r Random Forest}
+set.seed(2321)
+library(randomForest)
+library(e1071)
+fitTree <- train(classe~., method="rf", data=trainSubset, trControl=control3)
+```
+
+Evaluate model using the out-of-sample error and confusion matrix.
+```{r Forest Evaluation}
+predictTree <- predict(fitTree, newdata=testSubset)
+matrixTree <- confusionMatrix(predictTree, testSubset$classe)
+matrixTree
+```
+
+# Logistic Regression Model Build & Evaluation
+Use random forest method to build model.
+```{r Logistic Regression}
+set.seed(2321)
+library(caTools)
+fitReg <- train(classe~., method="LogitBoost", data=trainSubset, trControl=control3)
+```
+
+Evaluate model using the out-of-sample error and confusion matrix.
+```{r Regression Evaluation}
+predictReg <- predict(fitReg, newdata=testSubset)
+matrixReg <- confusionMatrix(predictReg, testSubset$classe)
+matrixReg
+```
+
+# Model Comparison
+Evaluate accuracy of random forest & logistic regression models.
+``` {r Model Compare}
+compare <- data.frame(predictTree, predictReg)
+```
+
+# Evaluation
+Accuracy under random forest method is 0.992 while accuracy under logistic regression method is 0.897. The random forest method will be used for predictions.
+
+# Prediction
+``` {r Predict}
+modelFinal <- train(classe~., method="rf", data=training, trControl=control3)
+predictFinal <- predict(modelFinal, newdata=testing)
+answers = as.character(predictFinal)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("predict/problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+
+```
